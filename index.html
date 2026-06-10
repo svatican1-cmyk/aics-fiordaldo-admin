@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AICS Casa Fiordaldo · Admin</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <div>
+        <p class="kicker">AICS Casa Fiordaldo</p>
+        <h1>Admin biglietti</h1>
+        <p>Scansiona un QR o inserisci manualmente il codice del biglietto.</p>
+      </div>
+      <span id="sessionBadge" class="badge muted">Non connesso</span>
+    </section>
+
+    <section id="loginCard" class="card">
+      <h2>Accesso staff</h2>
+      <input id="emailInput" type="email" placeholder="Email staff" autocomplete="email" />
+      <input id="passwordInput" type="password" placeholder="Password" autocomplete="current-password" />
+      <button id="loginBtn" class="primary">Accedi</button>
+      <p id="loginMessage" class="message"></p>
+    </section>
+
+    <section id="adminPanel" class="hidden">
+      <div class="toolbar">
+        <button id="startScanBtn" class="primary">Avvia scanner</button>
+        <button id="stopScanBtn" class="secondary">Ferma scanner</button>
+        <button id="logoutBtn" class="ghost">Logout</button>
+      </div>
+
+      <section class="card scanner-card">
+        <h2>Scanner QR</h2>
+        <div id="reader"></div>
+        <p class="hint">Da telefono usa la fotocamera. Da PC puoi inserire il codice manualmente sotto.</p>
+      </section>
+
+      <section class="card">
+        <h2>Inserimento manuale</h2>
+        <input id="manualCodeInput" type="text" placeholder="AICS-FIOR-1234 oppure JSON QR" />
+        <button id="manualVerifyBtn" class="primary">Verifica biglietto</button>
+      </section>
+
+      <section id="resultCard" class="card hidden">
+        <div class="result-header">
+          <h2>Risultato verifica</h2>
+          <span id="ticketStatusBadge" class="badge"></span>
+        </div>
+        <div id="ticketDetails" class="details"></div>
+        <button id="checkinBtn" class="primary hidden">Convalida ingresso</button>
+        <p id="resultMessage" class="message"></p>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
