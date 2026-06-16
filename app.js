@@ -1,5 +1,5 @@
-const SUPABASE_URL = "INCOLLA_QUI_PROJECT_URL";
-const SUPABASE_ANON_KEY = "INCOLLA_QUI_ANON_KEY";
+const SUPABASE_URL = "https://jigwyvlnepbjirlzbggv.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ3d5dmxuZXBiamlybHpiZ2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzY3MDgsImV4cCI6MjA5NTgxMjcwOH0._58DCoXeQcoDcDEkeVjH4IQdOhBbb50nP7LMImpEYWo";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let html5QrCode = null;
