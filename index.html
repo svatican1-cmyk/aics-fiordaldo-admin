@@ -1,62 +1,177 @@
 <!doctype html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AICS Casa Fiordaldo · Admin</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AICS Casa Fiordaldo - Admin</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body>
-  <main class="app-shell">
-    <section class="hero">
+  <div class="app-shell">
+    <header class="topbar">
       <div>
         <p class="kicker">AICS Casa Fiordaldo</p>
-        <h1>Admin biglietti</h1>
-        <p>Scansiona un QR o inserisci manualmente il codice del biglietto.</p>
+        <h1>Admin Web</h1>
       </div>
-      <span id="sessionBadge" class="badge muted">Non connesso</span>
-    </section>
+      <button id="logoutBtn" class="ghost hidden">Logout</button>
+    </header>
 
-    <section id="loginCard" class="card">
-      <h2>Accesso staff</h2>
-      <input id="emailInput" type="email" placeholder="Email staff" autocomplete="email" />
-      <input id="passwordInput" type="password" placeholder="Password" autocomplete="current-password" />
-      <button id="loginBtn" class="primary">Accedi</button>
-      <p id="loginMessage" class="message"></p>
-    </section>
-
-    <section id="adminPanel" class="hidden">
-      <div class="toolbar">
-        <button id="startScanBtn" class="primary">Avvia scanner</button>
-        <button id="stopScanBtn" class="secondary">Ferma scanner</button>
-        <button id="logoutBtn" class="ghost">Logout</button>
-      </div>
-
-      <section class="card scanner-card">
-        <h2>Scanner QR</h2>
-        <div id="reader"></div>
-        <p class="hint">Da telefono usa la fotocamera. Da PC puoi inserire il codice manualmente sotto.</p>
+    <main>
+      <section id="loginView" class="card narrow">
+        <h2>Accesso staff</h2>
+        <p class="muted">Accedi con un account Supabase con ruolo <strong>admin</strong> o <strong>staff</strong>.</p>
+        <label>Email</label>
+        <input id="loginEmail" type="email" autocomplete="email" placeholder="email" />
+        <label>Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="password" />
+        <button id="loginBtn" class="primary">Accedi</button>
+        <div id="loginMessage" class="message hidden"></div>
       </section>
 
-      <section class="card">
-        <h2>Inserimento manuale</h2>
-        <input id="manualCodeInput" type="text" placeholder="AICS-FIOR-1234 oppure JSON QR" />
-        <button id="manualVerifyBtn" class="primary">Verifica biglietto</button>
-      </section>
+      <section id="adminView" class="hidden">
+        <nav class="tabs">
+          <button class="tab active" data-tab="scanner">Scanner QR</button>
+          <button class="tab" data-tab="activities">Attività</button>
+          <button class="tab" data-tab="bookings">Prenotazioni</button>
+        </nav>
 
-      <section id="resultCard" class="card hidden">
-        <div class="result-header">
-          <h2>Risultato verifica</h2>
-          <span id="ticketStatusBadge" class="badge"></span>
-        </div>
-        <div id="ticketDetails" class="details"></div>
-        <button id="checkinBtn" class="primary hidden">Convalida ingresso</button>
-        <p id="resultMessage" class="message"></p>
+        <section id="scannerTab" class="tab-panel">
+          <div class="grid two">
+            <div class="card">
+              <h2>Scanner QR</h2>
+              <p class="muted">Da telefono funziona meglio. Da PC puoi usare il codice manuale.</p>
+              <div id="reader" class="reader"></div>
+              <div class="row">
+                <button id="startScannerBtn" class="primary">Avvia scanner</button>
+                <button id="stopScannerBtn" class="ghost">Ferma</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Controllo manuale</h2>
+              <label>Codice ticket o JSON QR</label>
+              <textarea id="manualCode" rows="5" placeholder="AICS-FIOR-1234 oppure JSON completo"></textarea>
+              <button id="verifyManualBtn" class="primary">Verifica biglietto</button>
+              <div id="ticketResult" class="result hidden"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="activitiesTab" class="tab-panel hidden">
+          <div class="grid two">
+            <div class="card">
+              <h2 id="activityFormTitle">Nuova attività</h2>
+              <input type="hidden" id="activityId" />
+
+              <label>Titolo</label>
+              <input id="activityTitle" placeholder="Es. Cena sotto le stelle" />
+
+              <label>Categoria</label>
+              <select id="activityCategory">
+                <option>Escursioni</option>
+                <option>Eventi</option>
+                <option>Cene</option>
+                <option>Laboratori</option>
+              </select>
+
+              <label>Descrizione breve</label>
+              <input id="activityShortDescription" placeholder="Testo breve per la card" />
+
+              <label>Descrizione completa</label>
+              <textarea id="activityDescription" rows="5" placeholder="Descrizione completa"></textarea>
+
+              <div class="grid two compact">
+                <div>
+                  <label>Luogo</label>
+                  <input id="activityLocation" placeholder="Casa Fiordaldo" />
+                </div>
+                <div>
+                  <label>Indirizzo</label>
+                  <input id="activityAddress" placeholder="Pistoia" />
+                </div>
+              </div>
+
+              <div class="grid three compact">
+                <div>
+                  <label>Prezzo da (€)</label>
+                  <input id="activityPrice" type="number" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label>Ordine</label>
+                  <input id="activitySort" type="number" value="0" />
+                </div>
+                <div>
+                  <label>Attiva</label>
+                  <select id="activityActive">
+                    <option value="true">Sì</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
+              </div>
+
+              <label>Foto attività</label>
+              <input id="activityImageFile" type="file" accept="image/*" />
+              <p class="muted tiny">Upload diretto nel bucket Supabase <strong>activities</strong>.</p>
+
+              <div class="row">
+                <button id="saveActivityBtn" class="primary">Salva attività</button>
+                <button id="resetActivityBtn" class="ghost">Pulisci</button>
+              </div>
+              <div id="activityMessage" class="message hidden"></div>
+            </div>
+
+            <div class="card">
+              <div class="split-title">
+                <h2>Attività esistenti</h2>
+                <button id="refreshActivitiesBtn" class="ghost small">Aggiorna</button>
+              </div>
+              <div id="activitiesList" class="list"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Date e posti</h2>
+            <p class="muted">Seleziona una attività dalla lista, poi aggiungi una data disponibile.</p>
+            <input type="hidden" id="dateActivityId" />
+            <div id="selectedActivityLabel" class="selected-label">Nessuna attività selezionata</div>
+
+            <div class="grid four compact">
+              <div>
+                <label>Inizio</label>
+                <input id="dateStart" type="datetime-local" />
+              </div>
+              <div>
+                <label>Fine</label>
+                <input id="dateEnd" type="datetime-local" />
+              </div>
+              <div>
+                <label>Prezzo (€)</label>
+                <input id="datePrice" type="number" min="0" step="0.01" />
+              </div>
+              <div>
+                <label>Posti</label>
+                <input id="dateSeats" type="number" min="0" step="1" />
+              </div>
+            </div>
+            <button id="saveDateBtn" class="primary">Aggiungi data</button>
+            <div id="datesList" class="list compact-list"></div>
+          </div>
+        </section>
+
+        <section id="bookingsTab" class="tab-panel hidden">
+          <div class="card">
+            <div class="split-title">
+              <h2>Prenotazioni</h2>
+              <button id="refreshBookingsBtn" class="ghost small">Aggiorna</button>
+            </div>
+            <div id="bookingsList" class="list"></div>
+          </div>
+        </section>
       </section>
-    </section>
-  </main>
+    </main>
+  </div>
 
   <script src="app.js"></script>
 </body>
