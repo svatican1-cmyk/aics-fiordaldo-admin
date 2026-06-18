@@ -2,87 +2,191 @@ const SUPABASE_URL = "https://jigwyvlnepbjirlzbggv.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppZ3d5dmxuZXBiamlybHpiZ2d2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMzY3MDgsImV4cCI6MjA5NTgxMjcwOH0._58DCoXeQcoDcDEkeVjH4IQdOhBbb50nP7LMImpEYWo";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let html5QrCode = null;
 let currentUser = null;
 let activitiesCache = [];
 
 const $ = (id) => document.getElementById(id);
 
-function show(el) { el.classList.remove("hidden"); }
-function hide(el) { el.classList.add("hidden"); }
-function money(value) { return `${Number(value || 0).toFixed(2).replace(".00", "")}€`; }
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+function show(el) {
+  if (el) el.classList.remove("hidden");
 }
+
+function hide(el) {
+  if (el) el.classList.add("hidden");
+}
+
+function money(value) {
+  return `${Number(value || 0).toFixed(2).replace(".00", "")}€`;
+}
+
+function escapeHtml(str = "") {
+  return String(str).replace(/[&<>'"]/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  }[c]));
+}
+
 function setMessage(el, type, text) {
+  if (!el) return;
   el.className = `message ${type === "ok" ? "ok" : "bad"}`;
   el.textContent = text;
   show(el);
 }
-function clearMessage(el) { el.textContent = ""; hide(el); }
+
+function clearMessage(el) {
+  if (!el) return;
+  el.textContent = "";
+  hide(el);
+}
+
+function setLoginLoading(isLoading) {
+  const btn = $("loginBtn");
+  if (!btn) return;
+  btn.disabled = isLoading;
+  btn.textContent = isLoading ? "Accesso in corso..." : "Accedi";
+}
 
 async function requireAdmin() {
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) return false;
-  currentUser = user;
-  const { data, error } = await client.from("profiles").select("role").eq("id", user.id).single();
-  if (error || !data || !["admin", "staff"].includes(data.role)) {
-    await client.auth.signOut();
+  try {
+    const { data: userData, error: userError } = await client.auth.getUser();
+
+    if (userError || !userData?.user) {
+      currentUser = null;
+      return false;
+    }
+
+    currentUser = userData.user;
+
+    const { data: profile, error: profileError } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (profileError || !profile) {
+      await client.auth.signOut();
+      currentUser = null;
+      return false;
+    }
+
+    if (!["admin", "staff"].includes(profile.role)) {
+      await client.auth.signOut();
+      currentUser = null;
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("requireAdmin error:", error);
+    currentUser = null;
     return false;
   }
-  return true;
 }
 
 async function init() {
-  const ok = await requireAdmin();
-  if (ok) await enterAdmin();
   bindEvents();
+
+  const ok = await requireAdmin();
+
+  if (ok) {
+    await enterAdmin();
+  } else {
+    show($("loginView"));
+    hide($("adminView"));
+    hide($("logoutBtn"));
+  }
 }
 
 function bindEvents() {
-  $("loginBtn").addEventListener("click", login);
-  $("logoutBtn").addEventListener("click", logout);
-  $("startScannerBtn").addEventListener("click", startScanner);
-  $("stopScannerBtn").addEventListener("click", stopScanner);
-  $("verifyManualBtn").addEventListener("click", () => verifyInput($("manualCode").value));
-  $("saveActivityBtn").addEventListener("click", saveActivity);
-  $("resetActivityBtn").addEventListener("click", resetActivityForm);
-  $("refreshActivitiesBtn").addEventListener("click", loadActivities);
-  $("saveDateBtn").addEventListener("click", saveDate);
-  $("refreshBookingsBtn").addEventListener("click", loadBookings);
+  $("loginBtn")?.addEventListener("click", login);
+  $("logoutBtn")?.addEventListener("click", logout);
+  $("startScannerBtn")?.addEventListener("click", startScanner);
+  $("stopScannerBtn")?.addEventListener("click", stopScanner);
+  $("verifyManualBtn")?.addEventListener("click", () => verifyInput($("manualCode").value));
+  $("saveActivityBtn")?.addEventListener("click", saveActivity);
+  $("resetActivityBtn")?.addEventListener("click", resetActivityForm);
+  $("refreshActivitiesBtn")?.addEventListener("click", loadActivities);
+  $("saveDateBtn")?.addEventListener("click", saveDate);
+  $("refreshBookingsBtn")?.addEventListener("click", loadBookings);
 
   document.querySelectorAll(".tab").forEach(btn => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
+
+  $("loginPassword")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") login();
+  });
 }
 
 async function login() {
-  clearMessage($("loginMessage"));
+  const msg = $("loginMessage");
+  clearMessage(msg);
+
   const email = $("loginEmail").value.trim().toLowerCase();
   const password = $("loginPassword").value.trim();
-  if (!email || !password) return setMessage($("loginMessage"), "bad", "Inserisci email e password.");
-  const { error } = await client.auth.signInWithPassword({ email, password });
-  if (error) return setMessage($("loginMessage"), "bad", "Accesso non riuscito: " + error.message);
-  const ok = await requireAdmin();
-  if (!ok) return setMessage($("loginMessage"), "bad", "Questo account non è admin/staff.");
-  await enterAdmin();
+
+  if (!email || !password) {
+    return setMessage(msg, "bad", "Inserisci email e password.");
+  }
+
+  setLoginLoading(true);
+
+  try {
+    const { error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setLoginLoading(false);
+      return setMessage(msg, "bad", "Accesso non riuscito: " + error.message);
+    }
+
+    const ok = await requireAdmin();
+
+    if (!ok) {
+      setLoginLoading(false);
+      return setMessage(msg, "bad", "Account valido, ma non autorizzato come admin/staff.");
+    }
+
+    setMessage(msg, "ok", "Accesso effettuato.");
+    await enterAdmin();
+  } catch (error) {
+    console.error("login error:", error);
+    setMessage(msg, "bad", "Errore durante il login. Controlla la console.");
+  } finally {
+    setLoginLoading(false);
+  }
 }
 
 async function logout() {
   await stopScanner();
   await client.auth.signOut();
   currentUser = null;
-  hide($("adminView")); show($("loginView")); hide($("logoutBtn"));
+  hide($("adminView"));
+  show($("loginView"));
+  hide($("logoutBtn"));
 }
 
 async function enterAdmin() {
-  hide($("loginView")); show($("adminView")); show($("logoutBtn"));
+  hide($("loginView"));
+  show($("adminView"));
+  show($("logoutBtn"));
+  switchTab("scanner");
   await loadActivities();
   await loadBookings();
 }
 
 function switchTab(tab) {
-  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+
   ["scanner", "activities", "bookings"].forEach(name => {
     const el = $(`${name}Tab`);
     name === tab ? show(el) : hide(el);
@@ -92,6 +196,7 @@ function switchTab(tab) {
 function parseTicketInput(raw) {
   const text = String(raw || "").trim();
   if (!text) return null;
+
   try {
     const json = JSON.parse(text);
     return json.code || json.ticket_code || json.ticketCode || null;
@@ -114,6 +219,7 @@ async function verifyTicket(code) {
     .single();
 
   if (error || !ticket) return renderTicketError("Biglietto non trovato.");
+
   renderTicket(ticket);
 }
 
@@ -128,7 +234,9 @@ function renderTicket(ticket) {
   const b = ticket.bookings || {};
   const box = $("ticketResult");
   const used = !!ticket.checked_in;
+
   box.className = `result ${used ? "bad" : "ok"}`;
+
   box.innerHTML = `
     <h3>${used ? "Biglietto già utilizzato" : "Biglietto valido"}</h3>
     <p><strong>Codice:</strong> ${escapeHtml(ticket.ticket_code)}</p>
@@ -140,26 +248,44 @@ function renderTicket(ticket) {
     <p><strong>Posti:</strong> ${escapeHtml(b.participants || "-")}</p>
     ${used ? `<p><strong>Riscattato il:</strong> ${new Date(ticket.checked_in_at).toLocaleString("it-IT")}</p>` : ""}
     <div class="row">
-      <button class="primary" ${used ? "disabled" : ""} onclick="checkInTicket('${ticket.id}')">Convalida ingresso</button>
+      <button class="primary" ${used ? "disabled" : ""} onclick="checkInTicket('${ticket.id}')">
+        Convalida ingresso
+      </button>
     </div>
   `;
+
   show(box);
 }
 
 window.checkInTicket = async function(ticketId) {
   const { error } = await client
     .from("tickets")
-    .update({ checked_in: true, checked_in_at: new Date().toISOString(), checked_in_by: currentUser?.id || null })
+    .update({
+      checked_in: true,
+      checked_in_at: new Date().toISOString(),
+      checked_in_by: currentUser?.id || null,
+    })
     .eq("id", ticketId)
     .eq("checked_in", false);
-  if (error) return renderTicketError("Errore durante la convalida: " + error.message);
+
+  if (error) {
+    return renderTicketError("Errore durante la convalida: " + error.message);
+  }
+
   $("ticketResult").className = "result ok";
-  $("ticketResult").innerHTML = `<h3>Ingresso convalidato</h3><p>Biglietto riscattato correttamente.</p>`;
+  $("ticketResult").innerHTML = `
+    <h3>Ingresso convalidato</h3>
+    <p>Biglietto riscattato correttamente.</p>
+  `;
+
+  await loadBookings();
 };
 
 async function startScanner() {
   if (html5QrCode) return;
+
   html5QrCode = new Html5Qrcode("reader");
+
   try {
     await html5QrCode.start(
       { facingMode: "environment" },
@@ -171,6 +297,7 @@ async function startScanner() {
       }
     );
   } catch (e) {
+    console.error("scanner error:", e);
     html5QrCode = null;
     renderTicketError("Scanner non disponibile. Usa inserimento manuale o autorizza la camera.");
   }
@@ -178,24 +305,41 @@ async function startScanner() {
 
 async function stopScanner() {
   if (!html5QrCode) return;
-  try { await html5QrCode.stop(); } catch {}
-  try { await html5QrCode.clear(); } catch {}
+
+  try {
+    await html5QrCode.stop();
+  } catch {}
+
+  try {
+    await html5QrCode.clear();
+  } catch {}
+
   html5QrCode = null;
 }
 
 async function uploadActivityImage(activityId, file) {
   if (!file) return null;
+
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${activityId}/${Date.now()}.${ext}`;
-  const { error: uploadError } = await client.storage.from("activities").upload(path, file, { upsert: true });
+
+  const { error: uploadError } = await client.storage
+    .from("activities")
+    .upload(path, file, { upsert: true });
+
   if (uploadError) throw uploadError;
+
   const { data } = client.storage.from("activities").getPublicUrl(path);
+
   return data.publicUrl;
 }
 
 async function saveActivity() {
-  const msg = $("activityMessage"); clearMessage(msg);
+  const msg = $("activityMessage");
+  clearMessage(msg);
+
   const id = $("activityId").value;
+
   const payload = {
     title: $("activityTitle").value.trim(),
     category: $("activityCategory").value,
@@ -209,29 +353,57 @@ async function saveActivity() {
     booking_enabled: true,
     share_enabled: true,
   };
-  if (!payload.title || !payload.category) return setMessage(msg, "bad", "Titolo e categoria sono obbligatori.");
+
+  if (!payload.title || !payload.category) {
+    return setMessage(msg, "bad", "Titolo e categoria sono obbligatori.");
+  }
+
   try {
     let activity;
+
     if (id) {
-      const { data, error } = await client.from("activities").update(payload).eq("id", id).select().single();
+      const { data, error } = await client
+        .from("activities")
+        .update(payload)
+        .eq("id", id)
+        .select()
+        .single();
+
       if (error) throw error;
       activity = data;
     } else {
-      const { data, error } = await client.from("activities").insert(payload).select().single();
+      const { data, error } = await client
+        .from("activities")
+        .insert(payload)
+        .select()
+        .single();
+
       if (error) throw error;
       activity = data;
     }
 
     const file = $("activityImageFile").files[0];
+
     if (file) {
       const url = await uploadActivityImage(activity.id, file);
-      await client.from("activity_images").insert({ activity_id: activity.id, image_url: url, sort_order: 0 });
-      await client.from("activities").update({ cover_image: url }).eq("id", activity.id);
+
+      await client.from("activity_images").insert({
+        activity_id: activity.id,
+        image_url: url,
+        sort_order: 0,
+      });
+
+      await client
+        .from("activities")
+        .update({ cover_image: url })
+        .eq("id", activity.id);
     }
+
     setMessage(msg, "ok", "Attività salvata.");
     resetActivityForm(false);
     await loadActivities();
   } catch (e) {
+    console.error("saveActivity error:", e);
     setMessage(msg, "bad", "Errore salvataggio: " + e.message);
   }
 }
@@ -242,29 +414,41 @@ async function loadActivities() {
     .select("*, activity_images(*), activity_dates(*)")
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
-  if (error) return;
+
+  if (error) {
+    console.error("loadActivities error:", error);
+    return;
+  }
+
   activitiesCache = data || [];
   renderActivities();
 }
 
 function renderActivities() {
   const list = $("activitiesList");
+
   if (!activitiesCache.length) {
     list.innerHTML = `<div class="list-item"><p class="muted">Nessuna attività presente.</p></div>`;
     return;
   }
+
   list.innerHTML = activitiesCache.map(a => {
     const img = a.cover_image || a.activity_images?.[0]?.image_url || "";
+
     return `
       <div class="list-item">
         <div class="item-head">
           ${img ? `<img class="preview-img" src="${escapeHtml(img)}" />` : `<div class="preview-img"></div>`}
           <div>
             <h3>${escapeHtml(a.title)}</h3>
-            <div><span class="badge">${escapeHtml(a.category)}</span>${a.is_active ? `<span class="badge">Attiva</span>` : `<span class="badge danger">Nascosta</span>`}</div>
+            <div>
+              <span class="badge">${escapeHtml(a.category)}</span>
+              ${a.is_active ? `<span class="badge">Attiva</span>` : `<span class="badge danger">Nascosta</span>`}
+            </div>
             <p class="meta">${escapeHtml(a.location_name || "")} · ${money(a.price_from)}</p>
           </div>
         </div>
+
         <div class="item-actions">
           <button class="ghost small" onclick="editActivity('${a.id}')">Modifica</button>
           <button class="ghost small" onclick="selectActivityForDate('${a.id}')">Date/Posti</button>
@@ -278,6 +462,7 @@ function renderActivities() {
 window.editActivity = function(id) {
   const a = activitiesCache.find(x => x.id === id);
   if (!a) return;
+
   $("activityFormTitle").textContent = "Modifica attività";
   $("activityId").value = a.id;
   $("activityTitle").value = a.title || "";
@@ -289,21 +474,39 @@ window.editActivity = function(id) {
   $("activityPrice").value = a.price_from || 0;
   $("activitySort").value = a.sort_order || 0;
   $("activityActive").value = String(!!a.is_active);
+
   selectActivityForDate(id);
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 window.deleteActivity = async function(id) {
   if (!confirm("Eliminare questa attività?")) return;
-  const { error } = await client.from("activities").delete().eq("id", id);
+
+  const { error } = await client
+    .from("activities")
+    .delete()
+    .eq("id", id);
+
   if (error) return alert("Errore eliminazione: " + error.message);
+
   await loadActivities();
 };
 
 function resetActivityForm(clearMsg = true) {
   if (clearMsg) clearMessage($("activityMessage"));
+
   $("activityFormTitle").textContent = "Nuova attività";
-  ["activityId","activityTitle","activityShortDescription","activityDescription","activityLocation","activityAddress","activityPrice"].forEach(id => $(id).value = "");
+
+  [
+    "activityId",
+    "activityTitle",
+    "activityShortDescription",
+    "activityDescription",
+    "activityLocation",
+    "activityAddress",
+    "activityPrice",
+  ].forEach(id => $(id).value = "");
+
   $("activityCategory").value = "Escursioni";
   $("activitySort").value = 0;
   $("activityActive").value = "true";
@@ -313,16 +516,22 @@ function resetActivityForm(clearMsg = true) {
 window.selectActivityForDate = async function(id) {
   const a = activitiesCache.find(x => x.id === id);
   if (!a) return;
+
   $("dateActivityId").value = id;
   $("selectedActivityLabel").textContent = a.title;
+
   await loadDates(id);
 };
 
 async function saveDate() {
   const activityId = $("dateActivityId").value;
+
   if (!activityId) return alert("Seleziona prima una attività.");
+
   const start = $("dateStart").value;
+
   if (!start) return alert("Inserisci data e ora di inizio.");
+
   const payload = {
     activity_id: activityId,
     start_datetime: new Date(start).toISOString(),
@@ -331,18 +540,38 @@ async function saveDate() {
     available_seats: Number($("dateSeats").value || 0),
     status: "active",
   };
-  const { error } = await client.from("activity_dates").insert(payload);
+
+  const { error } = await client
+    .from("activity_dates")
+    .insert(payload);
+
   if (error) return alert("Errore data: " + error.message);
-  ["dateStart","dateEnd","datePrice","dateSeats"].forEach(id => $(id).value = "");
+
+  ["dateStart", "dateEnd", "datePrice", "dateSeats"].forEach(id => $(id).value = "");
+
   await loadDates(activityId);
   await loadActivities();
 }
 
 async function loadDates(activityId) {
-  const { data, error } = await client.from("activity_dates").select("*").eq("activity_id", activityId).order("start_datetime");
-  if (error) return;
+  const { data, error } = await client
+    .from("activity_dates")
+    .select("*")
+    .eq("activity_id", activityId)
+    .order("start_datetime");
+
+  if (error) {
+    console.error("loadDates error:", error);
+    return;
+  }
+
   const list = $("datesList");
-  if (!data.length) return list.innerHTML = `<p class="muted">Nessuna data.</p>`;
+
+  if (!data.length) {
+    list.innerHTML = `<p class="muted">Nessuna data.</p>`;
+    return;
+  }
+
   list.innerHTML = data.map(d => `
     <div class="list-item">
       <strong>${new Date(d.start_datetime).toLocaleString("it-IT")}</strong>
@@ -354,8 +583,14 @@ async function loadDates(activityId) {
 
 window.deleteDate = async function(id) {
   if (!confirm("Eliminare questa data?")) return;
-  await client.from("activity_dates").delete().eq("id", id);
+
+  await client
+    .from("activity_dates")
+    .delete()
+    .eq("id", id);
+
   const activityId = $("dateActivityId").value;
+
   if (activityId) await loadDates(activityId);
 };
 
@@ -365,17 +600,33 @@ async function loadBookings() {
     .select("*, tickets(*)")
     .order("created_at", { ascending: false })
     .limit(100);
-  if (error) return $("bookingsList").innerHTML = `<div class="list-item"><p class="muted">Errore caricamento prenotazioni.</p></div>`;
+
+  if (error) {
+    console.error("loadBookings error:", error);
+    $("bookingsList").innerHTML = `<div class="list-item"><p class="muted">Errore caricamento prenotazioni.</p></div>`;
+    return;
+  }
+
   const list = $("bookingsList");
-  if (!data.length) return list.innerHTML = `<div class="list-item"><p class="muted">Nessuna prenotazione.</p></div>`;
+
+  if (!data.length) {
+    list.innerHTML = `<div class="list-item"><p class="muted">Nessuna prenotazione.</p></div>`;
+    return;
+  }
+
   list.innerHTML = data.map(b => {
     const t = b.tickets?.[0];
+
     return `
       <div class="list-item">
         <h3>${escapeHtml(b.activity_title)}</h3>
         <p class="meta">${escapeHtml(b.activity_date)} · ${escapeHtml(b.participant_name)} · ${b.participants} posti · ${money(b.total_amount)}</p>
         <p class="meta">${escapeHtml(b.participant_email)} · ${escapeHtml(b.participant_phone)}</p>
-        ${t ? `<span class="badge">${escapeHtml(t.ticket_code)}</span>${t.checked_in ? `<span class="badge danger">Riscattato</span>` : `<span class="badge">Valido</span>`}` : `<span class="badge danger">Nessun ticket</span>`}
+        ${
+          t
+            ? `<span class="badge">${escapeHtml(t.ticket_code)}</span>${t.checked_in ? `<span class="badge danger">Riscattato</span>` : `<span class="badge">Valido</span>`}`
+            : `<span class="badge danger">Nessun ticket</span>`
+        }
       </div>
     `;
   }).join("");
