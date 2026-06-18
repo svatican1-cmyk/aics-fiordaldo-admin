@@ -112,14 +112,61 @@
               </div>
 
               <label>Foto attività</label>
-              <input id="activityImageFile" type="file" accept="image/*" />
-              <p class="muted tiny">Upload diretto nel bucket Supabase <strong>activities</strong>.</p>
+              <input id="activityImageFiles" type="file" accept="image/*" multiple />
+              <p class="muted tiny">Upload multiplo diretto nel bucket Supabase <strong>activities</strong>.</p>
 
               <div class="row">
                 <button id="saveActivityBtn" class="primary">Salva attività</button>
                 <button id="resetActivityBtn" class="ghost">Pulisci</button>
               </div>
               <div id="activityMessage" class="message hidden"></div>
+
+              <hr class="soft-separator" />
+
+              <h2>Date, prezzo e posti</h2>
+              <p class="muted">Salva o seleziona un'attività, poi gestisci qui le date disponibili.</p>
+              <input type="hidden" id="dateActivityId" />
+              <input type="hidden" id="dateId" />
+              <div id="selectedActivityLabel" class="selected-label">Nessuna attività selezionata</div>
+
+              <div class="grid two compact">
+                <div>
+                  <label>Inizio</label>
+                  <input id="dateStart" type="datetime-local" />
+                </div>
+                <div>
+                  <label>Fine</label>
+                  <input id="dateEnd" type="datetime-local" />
+                </div>
+              </div>
+              <div class="grid three compact">
+                <div>
+                  <label>Prezzo (€)</label>
+                  <input id="datePrice" type="number" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label>Posti</label>
+                  <input id="dateSeats" type="number" min="0" step="1" />
+                </div>
+                <div>
+                  <label>Stato</label>
+                  <select id="dateStatus">
+                    <option value="active">active</option>
+                    <option value="hidden">hidden</option>
+                    <option value="sold_out">sold_out</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <button id="saveDateBtn" class="primary">Aggiungi data</button>
+                <button id="resetDateBtn" class="ghost">Pulisci data</button>
+              </div>
+              <div id="datesList" class="list compact-list"><p class="muted">Seleziona una attività per vedere le date.</p></div>
+
+              <hr class="soft-separator" />
+
+              <h2>Foto collegate</h2>
+              <div id="selectedImagesList" class="image-grid"><p class="muted">Seleziona una attività per vedere le foto collegate.</p></div>
             </div>
 
             <div class="card">
@@ -128,35 +175,16 @@
                 <button id="refreshActivitiesBtn" class="ghost small">Aggiorna</button>
               </div>
               <div id="activitiesList" class="list"></div>
-            </div>
-          </div>
 
-          <div class="card">
-            <h2>Date e posti</h2>
-            <p class="muted">Seleziona una attività dalla lista, poi aggiungi una data disponibile.</p>
-            <input type="hidden" id="dateActivityId" />
-            <div id="selectedActivityLabel" class="selected-label">Nessuna attività selezionata</div>
+              <hr class="soft-separator" />
 
-            <div class="grid four compact">
-              <div>
-                <label>Inizio</label>
-                <input id="dateStart" type="datetime-local" />
+              <div class="split-title">
+                <h2>Libreria immagini</h2>
+                <button id="refreshImagesBtn" class="ghost small">Aggiorna</button>
               </div>
-              <div>
-                <label>Fine</label>
-                <input id="dateEnd" type="datetime-local" />
-              </div>
-              <div>
-                <label>Prezzo (€)</label>
-                <input id="datePrice" type="number" min="0" step="0.01" />
-              </div>
-              <div>
-                <label>Posti</label>
-                <input id="dateSeats" type="number" min="0" step="1" />
-              </div>
+              <p class="muted tiny">Puoi riusare immagini già caricate, collegarle all'attività selezionata o eliminarle dal bucket.</p>
+              <div id="imageLibraryList" class="image-grid"></div>
             </div>
-            <button id="saveDateBtn" class="primary">Aggiungi data</button>
-            <div id="datesList" class="list compact-list"></div>
           </div>
         </section>
 
@@ -166,6 +194,17 @@
               <h2>Prenotazioni</h2>
               <button id="refreshBookingsBtn" class="ghost small">Aggiorna</button>
             </div>
+            <div class="grid two compact search-row">
+              <div>
+                <label>Cerca per email</label>
+                <input id="bookingSearchEmail" type="search" placeholder="cliente@email.it" />
+              </div>
+              <div class="checkbox-line">
+                <input id="showArchivedBookings" type="checkbox" />
+                <label for="showArchivedBookings">Mostra anche riscattate archiviate</label>
+              </div>
+            </div>
+            <p class="muted tiny">Le prenotazioni riscattate vengono nascoste automaticamente dopo la mezzanotte del giorno evento, quando la data è riconoscibile.</p>
             <div id="bookingsList" class="list"></div>
           </div>
         </section>
